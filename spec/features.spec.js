@@ -1,43 +1,21 @@
 'use strict';
 
-var features = require('../src/features');
-const request = require("request");
+const request = require('../lib/request');
 
 describe('features', () => {
-  it('set and get features', (done) => {
-    features.setFeature('push', {
-      testOption1: true,
-      testOption2: false
-    });
-
-    var _features = features.getFeatures();
-
-    var expected = {
-      testOption1: true,
-      testOption2: false
-    };
-
-    expect(_features.push).toEqual(expected);
-    done();
-  });
-
-  it('get features that does not exist', (done) => {
-    var _features = features.getFeatures();
-    expect(_features.test).toBeUndefined();
-    done();
-  });
-
-  it('requires the master key to get all schemas', done => {
-    request.get({
+  it('requires the master key to get features', done => {
+    request({
       url: 'http://localhost:8378/1/serverInfo',
       json: true,
       headers: {
         'X-Parse-Application-Id': 'test',
-        'X-Parse-REST-API-Key': 'rest'
-      }
-    }, (error, response, body) => {
-      expect(response.statusCode).toEqual(403);
-      expect(body.error).toEqual('unauthorized: master key is required');
+        'X-Parse-REST-API-Key': 'rest',
+      },
+    }).then(fail, response => {
+      expect(response.status).toEqual(403);
+      expect(response.data.error).toEqual(
+        'unauthorized: master key is required'
+      );
       done();
     });
   });

@@ -6,64 +6,89 @@
  @flow weak
  */
 
-import { MongoClient, GridStore, Db} from 'mongodb';
+// @flow-disable-next
+import { MongoClient, GridStore, Db } from 'mongodb';
 import { FilesAdapter } from './FilesAdapter';
+import defaults from '../../defaults';
 
 export class GridStoreAdapter extends FilesAdapter {
   _databaseURI: string;
   _connectionPromise: Promise<Db>;
 
-  constructor(mongoDatabaseURI: string) {
+  constructor(mongoDatabaseURI = defaults.DefaultMongoURI) {
     super();
     this._databaseURI = mongoDatabaseURI;
-    this._connect();
   }
 
   _connect() {
     if (!this._connectionPromise) {
-      this._connectionPromise = MongoClient.connect(this._databaseURI);
+      this._connectionPromise = MongoClient.connect(this._databaseURI).then(
+        client => client.db(client.s.options.dbName)
+      );
     }
     return this._connectionPromise;
   }
 
   // For a given config object, filename, and data, store a file
   // Returns a promise
-  createFile(config, filename: string, data, contentType) {
-    return this._connect().then(database => {
-      let gridStore = new GridStore(database, filename, 'w');
-      return gridStore.open();
-    }).then(gridStore => {
-      return gridStore.write(data);
-    }).then(gridStore => {
-      return gridStore.close();
-    });
+  createFile(filename: string, data) {
+    return this._connect()
+      .then(database => {
+        const gridStore = new GridStore(database, filename, 'w');
+        return gridStore.open();
+      })
+      .then(gridStore => {
+        return gridStore.write(data);
+      })
+      .then(gridStore => {
+        return gridStore.close();
+      });
   }
 
-  deleteFile(config, filename: string) {
-    return this._connect().then(database => {
-      let gridStore = new GridStore(database, filename, 'w');
-      return gridStore.open();
-    }).then((gridStore) => {
-      return gridStore.unlink();
-    }).then((gridStore) => {
-      return gridStore.close();
-    });
+  deleteFile(filename: string) {
+    return this._connect()
+      .then(database => {
+        const gridStore = new GridStore(database, filename, 'r');
+        return gridStore.open();
+      })
+      .then(gridStore => {
+        return gridStore.unlink();
+      })
+      .then(gridStore => {
+        return gridStore.close();
+      });
   }
 
-  getFileData(config, filename: string) {
-    return this._connect().then(database => {
-      return GridStore.exist(database, filename)
-        .then(() => {
-          let gridStore = new GridStore(database, filename, 'r');
+  getFileData(filename: string) {
+    return this._connect()
+      .then(database => {
+        return GridStore.exist(database, filename).then(() => {
+          const gridStore = new GridStore(database, filename, 'r');
           return gridStore.open();
         });
-    }).then(gridStore => {
-      return gridStore.read();
-    });
+      })
+      .then(gridStore => {
+        return gridStore.read();
+      });
   }
 
   getFileLocation(config, filename) {
-    return (config.mount + '/files/' + config.applicationId + '/' + encodeURIComponent(filename));
+    return (
+      config.mount +
+      '/files/' +
+      config.applicationId +
+      '/' +
+      encodeURIComponent(filename)
+    );
+  }
+
+  getFileStream(filename: string) {
+    return this._connect().then(database => {
+      return GridStore.exist(database, filename).then(() => {
+        const gridStore = new GridStore(database, filename, 'r');
+        return gridStore.open();
+      });
+    });
   }
 }
 
